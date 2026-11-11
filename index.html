@@ -692,7 +692,7 @@ body.role-member .owner-only{ display:none !important; }
           <input type="password" id="cfg-apiKey" class="admin-input" placeholder="Paste a key for this bot only" autocomplete="new-password">
           <p id="cfg-apiKey-status" style="font-size:12px;color:var(--text-faint);margin:-8px 0 16px;"></p>
           <label class="admin-label">Gemini model for this bot <span style="font-weight:400;">(optional — leave blank for automatic)</span></label>
-          <input type="text" id="cfg-model" class="admin-input" placeholder="gemini-2.5-flash">
+          <input type="text" id="cfg-model" class="admin-input" placeholder="Leave blank (automatic, recommended)">
           <label class="admin-label">Shop / website link <span style="font-weight:400;">(optional — shown as "Visit shop")</span></label>
           <input type="url" id="cfg-shopUrl" class="admin-input" placeholder="https://your-shop.vercel.app">
         </div>
@@ -810,7 +810,7 @@ body.role-member .owner-only{ display:none !important; }
           <input type="password" id="set-sharedKey" class="admin-input" placeholder="Paste a new key to replace it" autocomplete="new-password">
           <p id="set-sharedKey-status" style="font-size:12px;color:var(--text-faint);margin:-8px 0 16px;"></p>
           <label class="admin-label">Shared Gemini model <span style="font-weight:400;">(optional)</span></label>
-          <input type="text" id="set-sharedModel" class="admin-input" placeholder="gemini-2.5-flash">
+          <input type="text" id="set-sharedModel" class="admin-input" placeholder="Leave blank (automatic, recommended)">
           <button onclick="saveSharedKey(this)" class="save-btn">Save shared key</button>
         </div>
         <div class="admin-section">

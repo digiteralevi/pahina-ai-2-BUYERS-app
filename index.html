@@ -355,6 +355,12 @@ body.ready .rise{ animation: rise .9s var(--ease) both; animation-delay: calc(va
 .chat-input-area input::placeholder{ color: var(--text-faint); }
 .chat-input-area input:focus{ border-color: var(--accent); box-shadow: 0 0 0 4px var(--accent-tint); }
 .send-btn{ background: var(--grad); color: var(--on-accent); border:none; width:46px; height:46px; border-radius:16px; cursor:pointer; display:grid; place-items:center; flex-shrink:0; box-shadow: 0 10px 22px -10px var(--glow), inset 0 1px 0 rgba(255,255,255,.3); transition: transform .25s var(--ease); }
+/* Readability on any page color (light or dark host page): near-solid panel, solid input, strong text */
+.chat-widget{ background: color-mix(in srgb, var(--surface) 96%, var(--bg)); }
+.chat-widget .chat-input-area input{ background: var(--surface); color: var(--text); border:1.5px solid color-mix(in srgb, var(--text) 28%, transparent); }
+.chat-widget .chat-input-area input::placeholder{ color: color-mix(in srgb, var(--text) 55%, transparent); }
+.chat-widget .msg.bot{ background: color-mix(in srgb, var(--surface) 88%, var(--text) 6%); color: var(--text); }
+.chat-widget .lead-form{ background: var(--surface); }
 .send-btn:hover{ transform: translateY(-2px) rotate(-8deg); }
 .send-btn:active{ transform: scale(.94); }
 .powered{ text-align:center; font-size:11px; color: var(--text-faint); padding: 0 0 10px; }
@@ -375,7 +381,7 @@ body.ready .rise{ animation: rise .9s var(--ease) both; animation-delay: calc(va
 @media (max-width: 480px){ .chat-fab span.fab-label{ display:none; } .chat-fab{ padding:17px; border-radius:50%; } }
 
 @media (max-width: 768px){
-  .chat-widget{ inset:0; width:100%; height:100dvh; border-radius:0; border:none; background: color-mix(in srgb, var(--bg) 88%, transparent); }
+  .chat-widget{ inset:0; width:100%; height:100dvh; border-radius:0; border:none; background: var(--surface); }
   .chat-widget::before{ display:none; }
   .chat-header{ border-radius:0; }
   .chat-input-area input, .lead-form .admin-input{ font-size:16px; }

@@ -711,6 +711,8 @@ html.pahina-dark #pahina-bg{--pahina-ov:linear-gradient(rgba(7,10,22,.80),rgba(7
           <h3>AI employee</h3>
           <label class="admin-label">Employee name</label>
           <input type="text" id="cfg-botName" class="admin-input" placeholder="e.g., Alex, Sarah">
+          <label class="admin-label">Business logo link <span style="font-weight:400;">(optional, shows on this bot's chat so customers know it is the business's own assistant)</span></label>
+          <input type="url" id="cfg-logoUrl" class="admin-input" placeholder="https://... (logo image link, square works best)">
           <label class="admin-label">Gemini API key for this bot <span style="font-weight:400;">(optional — if blank, the shared key in Settings is used)</span></label>
           <input type="password" id="cfg-apiKey" class="admin-input" placeholder="Paste a key for this bot only" autocomplete="new-password">
           <p id="cfg-apiKey-status" style="font-size:12px;color:var(--text-faint);margin:-8px 0 16px;"></p>
@@ -1086,7 +1088,11 @@ function applyConfig() {
   $('hero-sub').textContent = c.tagline || 'Your AI assistant is ready to help you 24/7.';
   if (c.brandName) { $('brand-mark').textContent = c.brandName; document.title = c.brandName; }
   $('bot-name').textContent = c.botName || 'AI Assistant';
-  $('chat-avatar').textContent = (c.botName || 'A').trim().charAt(0).toUpperCase();
+  const av = $('chat-avatar'), lg = /^https:\/\//i.test(c.logoUrl || '') ? c.logoUrl : '';
+  av.textContent = '';
+  if (lg) { const im = document.createElement('img'); im.src = lg; im.alt = (c.brandName || 'Business') + ' logo'; im.style.cssText = 'width:100%;height:100%;object-fit:cover;border-radius:inherit;display:block;background:#fff'; im.onerror = function () { av.textContent = (c.botName || 'A').trim().charAt(0).toUpperCase(); }; av.appendChild(im); av.style.overflow = 'hidden'; av.style.padding = '0'; }
+  else av.textContent = (c.botName || 'A').trim().charAt(0).toUpperCase();
+  try { if (lg) { let fi = document.querySelector('link[rel="icon"]'); if (!fi) { fi = document.createElement('link'); fi.rel = 'icon'; document.head.appendChild(fi); } fi.href = lg; } } catch (e) {}
   $('welcome-msg').textContent = c.botName
     ? `Hi! I'm ${c.botName} from ${c.brandName || 'our store'}. How can I help you today?`
     : 'Hi! How can I help you today?';
@@ -1258,7 +1264,7 @@ async function loadConfig() {
   // clear the fields first so another bot's data is not carried over
   document.querySelectorAll('#admin-panel input:not([readonly]), #admin-panel textarea').forEach(el => { if (el.id !== 'new-bot-name') el.value = ''; });
   setVal('cfg-brandName', c.brandName); setVal('cfg-heroText', c.heroText); setVal('cfg-tagline', c.tagline);
-  setVal('cfg-businessDesc', c.businessDesc); setVal('cfg-lang', c.lang || 'en'); setVal('cfg-botName', c.botName);
+  setVal('cfg-businessDesc', c.businessDesc); setVal('cfg-lang', c.lang || 'en'); setVal('cfg-botName', c.botName); setVal('cfg-logoUrl', c.logoUrl);
   setVal('cfg-shopUrl', c.shopUrl);
   setVal('cfg-palette', PALETTES.some(p => p.id === c.themePalette) ? c.themePalette : 'royal');
   setVal('cfg-themeMode', c.themeMode === 'light' || c.themeMode === 'dark' ? c.themeMode : 'auto');
@@ -1336,7 +1342,7 @@ async function saveAllConfig(btn) {
   await withSaving(btn, async () => {
     await upsertConfigs({
       brandName: $('cfg-brandName').value.trim(), heroText: $('cfg-heroText').value.trim(), tagline: $('cfg-tagline').value.trim(),
-      businessDesc: $('cfg-businessDesc').value.trim(), lang: $('cfg-lang').value, botName: $('cfg-botName').value.trim(),
+      businessDesc: $('cfg-businessDesc').value.trim(), lang: $('cfg-lang').value, botName: $('cfg-botName').value.trim(), logoUrl: (/^https:\/\//i.test($('cfg-logoUrl').value.trim()) ? $('cfg-logoUrl').value.trim() : ''),
       shopUrl: safeUrl($('cfg-shopUrl').value),
       themePalette: $('cfg-palette').value, themeMode: $('cfg-themeMode').value
     });

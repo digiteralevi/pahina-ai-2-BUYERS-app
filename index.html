@@ -715,6 +715,8 @@ html.pahina-dark #pahina-bg{--pahina-ov:linear-gradient(rgba(7,10,22,.80),rgba(7
           <input type="url" id="cfg-logoUrl" class="admin-input" placeholder="https://... (logo image link, square works best)">
           <label class="admin-label">Gemini API key for this bot <span style="font-weight:400;">(optional — if blank, the shared key in Settings is used)</span></label>
           <input type="password" id="cfg-apiKey" class="admin-input" placeholder="Paste a key for this bot only" autocomplete="new-password">
+          <button type="button" class="admin-btn" id="ki-make" style="margin:0 0 6px;">Make a private key link for the client</button>
+          <p id="ki-out" style="font-size:12px;color:var(--text-faint);margin:0 0 16px;word-break:break-all;">The client opens this link and pastes their own Google AI key for this bot. They never see your admin, and you never see their key. One use, valid 14 days.</p>
           <p id="cfg-apiKey-status" style="font-size:12px;color:var(--text-faint);margin:-8px 0 16px;"></p>
           <label class="admin-label">Gemini model for this bot <span style="font-weight:400;">(optional — leave blank for automatic)</span></label>
           <input type="text" id="cfg-model" class="admin-input" placeholder="Leave blank (automatic, recommended)">
@@ -1016,6 +1018,7 @@ document.addEventListener('DOMContentLoaded', async function () {
     return;
   }
   sb = window.supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY);
+  if (urlParams.get('ki')) { await keyInvitePage(urlParams.get('ki')); return; }
   currentBotId = await resolveBot(TID);
   await loadPublicConfig();
   if (window.isAdminView) {
@@ -1452,6 +1455,54 @@ async function saveBotSettings(btn) {
 
 /* ---------- My Bots ---------- */
 function pageBase() { return location.origin + location.pathname; }
+async function keyInvitePage(tok) {
+  pageReady();
+  const box = document.createElement('div');
+  box.style.cssText = 'position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;padding:18px;background:var(--bg,#0e0b1a);';
+  box.innerHTML = '<div style="width:min(460px,100%);border-radius:20px;padding:26px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.18);color:inherit;font-family:inherit;">' +
+    '<h2 style="margin:0 0 6px;font-size:22px;">Connect your AI assistant</h2><p id="ki-sub" style="margin:0 0 16px;opacity:.8;font-size:14px;line-height:1.55;">Checking your link...</p>' +
+    '<div id="ki-form" style="display:none;"><ol style="margin:0 0 14px 18px;padding:0;font-size:14px;line-height:1.7;opacity:.9;"><li>Open <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline;">aistudio.google.com/apikey</a> and sign in with your business Gmail.</li><li>Click <b>Create API key</b>, then copy it.</li><li>Paste it below and click Connect.</li></ol>' +
+    '<input id="ki-key" type="password" autocomplete="off" placeholder="Your Google AI key" style="width:100%;box-sizing:border-box;padding:13px;border-radius:12px;border:1px solid rgba(255,255,255,.25);background:rgba(0,0,0,.2);color:inherit;font-size:16px;margin-bottom:10px;">' +
+    '<button id="ki-go" type="button" style="width:100%;padding:13px;border-radius:12px;border:0;font-weight:700;font-size:15px;cursor:pointer;background:var(--accent,#8b6fd4);color:#fff;">Connect</button>' +
+    '<p style="font-size:12px;opacity:.65;margin:12px 0 0;line-height:1.5;">Your key is saved securely on the server and is only used by this assistant. You can delete or change it anytime at aistudio.google.com.</p></div>' +
+    '<p id="ki-msg" role="status" style="margin:12px 0 0;font-size:14px;"></p></div>';
+  document.body.appendChild(box);
+  const sub = $('ki-sub'), msg = $('ki-msg');
+  try {
+    const { data, error } = await sb.rpc('key_invite_info', { p_token: tok });
+    if (error) throw error;
+    if (!data || !data.ok) { sub.textContent = 'This link was already used or has expired. Ask for a new link.'; return; }
+    sub.textContent = 'This connects the assistant' + (data.name ? ' "' + data.name + '"' : '') + ' to your own Google AI key. It takes about 2 minutes.';
+    $('ki-form').style.display = 'block';
+  } catch (e) { sub.textContent = 'This link needs an update on the owner\'s side (run the latest database setup). Please tell the person who sent it.'; return; }
+  $('ki-go').onclick = async function () {
+    const k = $('ki-key').value.trim(), b = this;
+    if (k.length < 20) { msg.textContent = 'Please paste the whole key.'; return; }
+    b.disabled = true; b.textContent = 'Connecting...';
+    try {
+      const { error } = await sb.rpc('use_key_invite', { p_token: tok, p_key: k });
+      if (error) throw error;
+      $('ki-form').style.display = 'none'; sub.textContent = 'Connected. Your assistant now uses your own Google AI key. You can close this page.'; msg.textContent = '';
+    } catch (e) { msg.textContent = (e && e.message) || 'Could not connect. Please try again.'; b.disabled = false; b.textContent = 'Connect'; }
+  };
+}
+document.addEventListener('click', async function (e) {
+  if (!e.target.closest || !e.target.closest('#ki-make')) return;
+  const out = $('ki-out'), b = e.target.closest('#ki-make');
+  b.disabled = true;
+  try {
+    const { data, error } = await sb.rpc('create_key_invite', { p_bot: currentBotId });
+    if (error) throw error;
+    const link = pageBase() + '?ki=' + encodeURIComponent(data) + cQ('&');
+    out.innerHTML = '';
+    const a = document.createElement('div'); a.textContent = link; a.style.cssText = 'padding:8px 10px;border-radius:8px;background:rgba(127,127,127,.12);margin-bottom:6px;';
+    out.appendChild(a);
+    try { await navigator.clipboard.writeText(link); out.appendChild(document.createTextNode('Copied. Send it to the client. One use, valid 14 days. A new link cancels the old one.')); }
+    catch (er) { out.appendChild(document.createTextNode('Copy this link and send it to the client. One use, valid 14 days.')); }
+  } catch (er) {
+    out.textContent = /create_key_invite|function/i.test((er && er.message) || '') ? 'Update your database first: open the setup guide, copy the database setup again and run it in Supabase SQL Editor (safe to run again). Then try again.' : ((er && er.message) || 'Could not make the link.');
+  } finally { b.disabled = false; }
+});
 function botLink(id) { return pageBase() + '?tid=' + encodeURIComponent(id || '') + cQ('&'); }
 function adminLinkFor(id) { return pageBase() + '?admin=1&tid=' + encodeURIComponent(id || '') + cQ('&'); }
 function currentBotName() { const b = botsList.find(x => x.id === currentBotId); return b ? b.name : ''; }

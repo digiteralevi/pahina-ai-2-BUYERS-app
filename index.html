@@ -1054,7 +1054,7 @@ async function loadPublicConfig() {
     window.configData = {};
     window.products = [];
     if (!currentBotId) { applyConfig(); return; }
-    const cfg = await sb.from('configs').select('key,value').eq('bot_id', currentBotId);
+    const cfg = await sb.from('configs').select('key,value').eq('bot_id', currentBotId).not('key', 'like', 'msImg%'); // mini site photos load separately (fast first paint)
     (cfg.data || []).forEach(r => { if (r.key) window.configData[r.key] = r.value; });
     const pr = await sb.from('products').select('*').eq('bot_id', currentBotId).order('display_order', { ascending: true });
     window.products = pr.data || [];
@@ -1748,6 +1748,256 @@ async function loadAnalytics() {
 </script>
 <script>/* keep the Pahina Connect link on the Setup Wizard button */
 document.querySelectorAll('a[href="setup.html"]').forEach(function (a) { a.href = 'setup.html' + cQ('?'); });
+</script>
+<style id="ms-css">
+/* ===== Mini site (Nov 24, 2026): shown only when a bot has Mini site settings ===== */
+.ms-on .stage.hero{position:relative;max-width:none;border-radius:0;overflow:hidden;isolation:isolate;padding-top:clamp(56px,12vh,130px);padding-bottom:64px}
+.ms-bg{position:absolute;inset:0;z-index:-2}
+.ms-bg img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0;transform:scale(1.06);transition:opacity 1.3s ease,transform 7s ease}
+.ms-bg img.on{opacity:1;transform:scale(1)}
+.ms-shade{position:absolute;inset:0;z-index:-1;background:linear-gradient(180deg,rgba(10,6,20,.35),rgba(10,6,20,.55) 55%,rgba(10,6,20,.82))}
+.ms-photo .stage.hero #hero-title,.ms-photo .stage.hero #hero-sub,.ms-photo .stage.hero .assure li,.ms-photo .stage.hero .shelf-title{color:#fff!important;text-shadow:0 2px 18px rgba(0,0,0,.35)}
+.ms-photo .stage.hero .live-pill{background:rgba(255,255,255,.16);color:#fff;border-color:rgba(255,255,255,.3)}
+.ms-logo{width:88px;height:88px;border-radius:24px;object-fit:cover;margin:0 auto 18px;display:block;background:#fff;box-shadow:0 14px 34px rgba(0,0,0,.28);border:3px solid rgba(255,255,255,.85)}
+.ms-dots{display:flex;gap:6px;justify-content:center;margin-top:22px}
+.ms-dots button{width:8px;height:8px;border-radius:50%;border:0;padding:0;background:rgba(255,255,255,.45);cursor:pointer;transition:width .3s,background .3s}
+.ms-dots button.on{width:22px;border-radius:6px;background:#fff}
+.ms-info,.ms-menu,.ms-gal{width:100%;box-sizing:border-box;align-self:stretch}
+.ms-info{max-width:1140px;margin:0 auto;padding:44px clamp(18px,3vw,32px) 12px;display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:16px;text-align:left}
+.ms-card{background:var(--glass,var(--surface));border:1px solid var(--glass-line,rgba(0,0,0,.08));border-radius:22px;padding:22px;-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);color:var(--text)}
+.ms-card h3{font-family:var(--sans-display);font-size:18px;margin:0 0 10px;display:flex;align-items:center;gap:9px}
+.ms-card h3 svg{width:18px;height:18px;stroke:var(--accent);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.ms-card p,.ms-card li{color:var(--text-soft);font-size:14.5px;line-height:1.6;margin:0}
+.ms-hours{list-style:none;padding:0;margin:0;display:grid;gap:4px}
+.ms-btns{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+.ms-btns a{display:inline-flex;align-items:center;gap:7px;padding:10px 16px;border-radius:999px;font-weight:700;font-size:14px;text-decoration:none;background:var(--accent);color:var(--on-accent,#fff)}
+.ms-btns a.alt{background:transparent;color:var(--text);border:1px solid var(--glass-line,rgba(0,0,0,.15))}
+.ms-menu{max-width:1140px;margin:0 auto;padding:18px clamp(18px,3vw,32px) 10px;text-align:left}
+.ms-menu h2,.ms-gal h2{font-family:var(--sans-display);font-size:clamp(24px,3vw,32px);margin:0 0 14px;color:var(--text)}
+.ms-mlist{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px}
+.ms-item{display:flex;justify-content:space-between;gap:14px;align-items:flex-start;padding:16px 18px;border-radius:18px;background:var(--glass,var(--surface));border:1px solid var(--glass-line,rgba(0,0,0,.08));cursor:pointer;text-align:left;color:var(--text);font-family:var(--sans);transition:transform .2s,border-color .2s}
+.ms-item:hover{transform:translateY(-2px);border-color:var(--accent)}
+.ms-item b{display:block;font-size:15.5px}.ms-item small{display:block;color:var(--text-soft);font-size:13px;margin-top:3px;line-height:1.5}
+.ms-item .pr{font-weight:800;color:var(--accent);white-space:nowrap}
+.ms-gal{max-width:1140px;margin:0 auto;padding:22px clamp(18px,3vw,32px) 30px;text-align:left}
+.ms-glist{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.ms-glist button{padding:0;border:0;border-radius:16px;overflow:hidden;cursor:zoom-in;aspect-ratio:1;background:var(--surface)}
+.ms-glist img{width:100%;height:100%;object-fit:cover;display:block;transition:transform .4s}.ms-glist button:hover img{transform:scale(1.06)}
+#ms-lb{border:0;padding:0;background:transparent;max-width:94vw;max-height:90vh}#ms-lb::backdrop{background:rgba(5,3,12,.85)}#ms-lb img{max-width:94vw;max-height:90vh;border-radius:14px;display:block}
+.chat-avatar.ms-av{background-size:cover!important;background-position:center!important;color:transparent!important}
+/* admin */
+.ms-adm-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:10px;margin:10px 0}
+.ms-adm-grid .th{position:relative;aspect-ratio:1;border-radius:12px;overflow:hidden;background:var(--bg-2)}
+.ms-adm-grid .th img{width:100%;height:100%;object-fit:cover;display:block}
+.ms-adm-grid .th button{position:absolute;top:6px;right:6px;width:26px;height:26px;border-radius:50%;border:0;background:rgba(0,0,0,.65);color:#fff;cursor:pointer;font-size:14px;line-height:1}
+.ms-adm-grid .th em{position:absolute;left:6px;bottom:6px;font-style:normal;font-size:11px;font-weight:700;background:rgba(0,0,0,.6);color:#fff;padding:3px 7px;border-radius:999px}
+.ms-adm-logo{width:84px;height:84px;border-radius:20px;object-fit:cover;background:var(--bg-2);display:block;margin:8px 0}
+.ms-adm-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+@media(max-width:640px){.ms-info{padding-top:30px}.ms-logo{width:72px;height:72px}}
+@media(prefers-reduced-motion:reduce){.ms-bg img{transition:none}}
+</style>
+<script id="ms-js">
+/* ===== PAHINA AI MINI SITE =====
+   The bot link becomes a small branded page of the business: photo slideshow hero with the logo, info cards (hours,
+   address, contact buttons), the menu / price list from Products, and a photo gallery. The chat avatar uses the logo.
+   Settings live in the same "configs" table (keys msLogo, msImg1..8, msAddress, msHours, msPhone, msMaps, msShowMenu),
+   so no database change is needed. Photos load after the page shows, so the link stays fast on mobile data.
+   Bots without Mini site settings keep the current look. */
+(function () {
+  'use strict';
+  const MAX = 8;
+  const S = { imgs: [], loaded: false };
+  const E = function (s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); };
+  const SVG = {
+    clock: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
+    pin: '<svg viewBox="0 0 24 24"><path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg>',
+    phone: '<svg viewBox="0 0 24 24"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2"/></svg>',
+    chat: '<svg viewBox="0 0 24 24"><path d="M21 11.5a8.4 8.4 0 0 1-8.5 8.5 8.6 8.6 0 0 1-3.8-.9L3 21l1.9-5.7A8.5 8.5 0 1 1 21 11.5z"/></svg>'
+  };
+  function cfg() { return window.configData || {}; }
+  function hasSite() { const c = cfg(); return !!(c.msLogo || c.msAddress || c.msHours || c.msPhone || c.msMaps || S.imgs.length || (+c.msImgCount > 0)); }
+  function link(u) { u = String(u || '').trim(); if (!u) return ''; if (!/^https?:\/\//i.test(u)) u = 'https://' + u.replace(/^\/+/, ''); return /^https:\/\//i.test(u) ? u : ''; }
+  function telOf(p) { const d = String(p || '').replace(/[^\d+]/g, ''); if (d.length < 7) return ''; return 'tel:' + (d.charAt(0) === '0' ? '+63' + d.slice(1) : d); }
+  function messenger() { try { const l = JSON.parse(cfg().socialLinks || '[]').filter(function (x) { return x.type === 'messenger'; })[0]; return l ? link(l.url) : ''; } catch (e) { return ''; } }
+
+  async function loadImages() {
+    const db = (typeof sb !== 'undefined' && sb) ? sb : null; if (!db || !window.currentBotIdForMs) return;
+    try {
+      const r = await db.from('configs').select('key,value').eq('bot_id', window.currentBotIdForMs).like('key', 'msImg%');
+      const rows = (r.data || []).filter(function (x) { return /^data:image\//.test(x.value || ''); }).sort(function (a, b) { return parseInt(a.key.slice(5), 10) - parseInt(b.key.slice(5), 10); });
+      S.imgs = rows.map(function (x) { return { key: x.key, src: x.value }; });
+    } catch (e) { S.imgs = []; }
+    S.loaded = true;
+  }
+
+  /* ---------- customer page ---------- */
+  let timer = null;
+  function render() {
+    const view = document.getElementById('storefront-view'); if (!view) return;
+    ['ms-bg', 'ms-shade', 'ms-logo', 'ms-dots', 'ms-info', 'ms-menu', 'ms-gal', 'ms-lb'].forEach(function (id) { const n = document.getElementById(id); if (n) n.remove(); });
+    clearInterval(timer);
+    document.body.classList.remove('ms-on', 'ms-photo');
+    const av = document.getElementById('chat-avatar'); if (av) { av.classList.remove('ms-av'); av.style.backgroundImage = ''; }
+    if (!hasSite()) return;
+    const c = cfg();
+    document.body.classList.add('ms-on');
+    const hero = view.querySelector('.stage.hero'), inner = view.querySelector('.hero-inner');
+    // logo
+    if (c.msLogo && /^data:image\//.test(c.msLogo) && inner) {
+      const lg = document.createElement('img'); lg.id = 'ms-logo'; lg.className = 'ms-logo'; lg.alt = c.brandName || ''; lg.src = c.msLogo; inner.insertBefore(lg, inner.firstChild);
+      if (av) { av.classList.add('ms-av'); av.style.backgroundImage = 'url("' + c.msLogo + '")'; }
+    }
+    // hero slideshow
+    if (S.imgs.length && hero) {
+      document.body.classList.add('ms-photo');
+      const bg = document.createElement('div'); bg.id = 'ms-bg'; bg.className = 'ms-bg'; bg.setAttribute('aria-hidden', 'true');
+      S.imgs.forEach(function (im, i) { const x = document.createElement('img'); x.alt = ''; x.src = im.src; if (!i) x.className = 'on'; x.decoding = 'async'; bg.appendChild(x); });
+      const sh = document.createElement('div'); sh.id = 'ms-shade'; sh.className = 'ms-shade';
+      hero.insertBefore(sh, hero.firstChild); hero.insertBefore(bg, hero.firstChild);
+      if (S.imgs.length > 1 && inner) {
+        const dots = document.createElement('div'); dots.id = 'ms-dots'; dots.className = 'ms-dots';
+        S.imgs.forEach(function (_, i) { const b = document.createElement('button'); b.type = 'button'; b.setAttribute('aria-label', 'Photo ' + (i + 1)); if (!i) b.className = 'on'; b.onclick = function () { show(i); restart(); }; dots.appendChild(b); });
+        inner.appendChild(dots);
+        let cur = 0;
+        const show = function (i) { const ims = bg.querySelectorAll('img'), ds = dots.querySelectorAll('button'); ims[cur].classList.remove('on'); ds[cur].classList.remove('on'); cur = (i + ims.length) % ims.length; ims[cur].classList.add('on'); ds[cur].classList.add('on'); };
+        const restart = function () { clearInterval(timer); timer = setInterval(function () { show(cur + 1); }, 5000); };
+        restart();
+      }
+    }
+    // info cards
+    const cards = [];
+    const hours = String(c.msHours || '').split('\n').map(function (l) { return l.trim(); }).filter(Boolean);
+    if (hours.length) cards.push('<div class="ms-card"><h3>' + SVG.clock + 'Opening hours</h3><ul class="ms-hours">' + hours.map(function (h) { return '<li>' + E(h) + '</li>'; }).join('') + '</ul></div>');
+    const maps = link(c.msMaps);
+    if (c.msAddress || maps) cards.push('<div class="ms-card"><h3>' + SVG.pin + 'Find us</h3>' + (c.msAddress ? '<p>' + E(c.msAddress) + '</p>' : '') + (maps ? '<div class="ms-btns"><a href="' + E(maps) + '" target="_blank" rel="noopener">Open in Google Maps</a></div>' : '') + '</div>');
+    const tel = telOf(c.msPhone), ms = messenger();
+    if (tel || ms) cards.push('<div class="ms-card"><h3>' + SVG.phone + 'Contact us</h3>' + (c.msPhone ? '<p>' + E(c.msPhone) + '</p>' : '') + '<div class="ms-btns"><a href="#" data-ms-chat>' + 'Chat now</a>' + (tel ? '<a class="alt" href="' + E(tel) + '">Call</a>' : '') + (ms ? '<a class="alt" href="' + E(ms) + '" target="_blank" rel="noopener">Messenger</a>' : '') + '</div></div>');
+    const footer = view.querySelector('footer');
+    if (cards.length && footer) { const d = document.createElement('section'); d.id = 'ms-info'; d.className = 'ms-info'; d.innerHTML = cards.join(''); footer.parentNode.insertBefore(d, footer); }
+    // menu / price list
+    const items = (window.products || []).filter(function (p) { return (p.name || '').trim(); });
+    if (c.msShowMenu !== '0' && items.length && footer) {
+      const m = document.createElement('section'); m.id = 'ms-menu'; m.className = 'ms-menu';
+      m.innerHTML = '<h2>' + (c.lang === 'tl' ? 'Menu at presyo' : 'Menu & prices') + '</h2><div class="ms-mlist">' + items.map(function (p, i) { return '<button type="button" class="ms-item" data-ms-ask="' + i + '"><span><b>' + E(p.name) + '</b>' + (p.description ? '<small>' + E(String(p.description).slice(0, 160)) + '</small>' : '') + '</span>' + ((p.price || '').trim() ? '<span class="pr">' + E(p.price) + '</span>' : '') + '</button>'; }).join('') + '</div>';
+      footer.parentNode.insertBefore(m, footer);
+      m.querySelectorAll('[data-ms-ask]').forEach(function (b) { b.onclick = function () { const p = items[+b.getAttribute('data-ms-ask')]; if (p && typeof askAbout === 'function') askAbout(p.name); }; });
+    }
+    // gallery
+    if (S.imgs.length > 1 && footer) {
+      const g = document.createElement('section'); g.id = 'ms-gal'; g.className = 'ms-gal';
+      g.innerHTML = '<h2>' + (c.lang === 'tl' ? 'Mga larawan' : 'Photos') + '</h2><div class="ms-glist">' + S.imgs.map(function (im, i) { return '<button type="button" data-ms-big="' + i + '" aria-label="Open photo ' + (i + 1) + '"><img alt="" loading="lazy" src="' + im.src + '"></button>'; }).join('') + '</div>';
+      footer.parentNode.insertBefore(g, footer);
+      const lb = document.createElement('dialog'); lb.id = 'ms-lb'; lb.innerHTML = '<img alt="">'; document.body.appendChild(lb);
+      lb.addEventListener('click', function () { lb.close(); });
+      g.querySelectorAll('[data-ms-big]').forEach(function (b) { b.onclick = function () { lb.querySelector('img').src = S.imgs[+b.getAttribute('data-ms-big')].src; try { lb.showModal(); } catch (e) {} }; });
+    }
+    view.querySelectorAll('[data-ms-chat]').forEach(function (a) { a.onclick = function (e) { e.preventDefault(); if (typeof openChat === 'function') openChat(); }; });
+  }
+
+  /* ---------- admin: Mini site tab ---------- */
+  function compress(file, max, q, type) {
+    return new Promise(function (res, rej) {
+      const fr = new FileReader();
+      fr.onload = function () {
+        const im = new Image();
+        im.onload = function () {
+          const k = Math.min(1, max / Math.max(im.width, im.height)); const w = Math.round(im.width * k), h = Math.round(im.height * k);
+          const cv = document.createElement('canvas'); cv.width = w; cv.height = h; const x = cv.getContext('2d');
+          if (type === 'image/jpeg') { x.fillStyle = '#fff'; x.fillRect(0, 0, w, h); }
+          x.drawImage(im, 0, 0, w, h); res(cv.toDataURL(type || 'image/jpeg', q || 0.72));
+        };
+        im.onerror = rej; im.src = fr.result;
+      };
+      fr.onerror = rej; fr.readAsDataURL(file);
+    });
+  }
+  const A = { logo: '', imgs: [] }; // what the admin is editing
+  function mountAdmin() {
+    if (document.getElementById('tab-minisite')) return true;
+    const bar = document.querySelector('.admin-tab-btn[data-tab="social"]'); const content = document.querySelector('.admin-content');
+    if (!bar || !content) return false;
+    const b = document.createElement('button'); b.className = 'admin-tab-btn'; b.setAttribute('data-tab', 'minisite'); b.textContent = 'Mini site'; b.onclick = function () { switchTab('minisite'); renderAdmin(); };
+    bar.parentNode.insertBefore(b, bar.nextSibling);
+    const t = document.createElement('div'); t.id = 'tab-minisite'; t.className = 'hidden';
+    t.innerHTML = '<div class="admin-section"><h3>Mini site: the bot link becomes a page of the business</h3>' +
+      '<p style="font-size:13px;color:var(--text-soft);margin:0 0 12px;">Customers who open this bot link see your logo, a photo slideshow, your hours, address, contact buttons and menu, with the chat right there. Leave everything empty to keep the simple look.</p>' +
+      '<label class="admin-label">Logo (also used as the chat avatar)</label><img id="ms-a-logo" class="ms-adm-logo" alt="" style="display:none"><div class="ms-adm-row"><button type="button" class="btn btn-outline" id="ms-a-logo-btn">Upload logo</button><button type="button" class="btn btn-outline" id="ms-a-logo-del" style="display:none">Remove logo</button></div>' +
+      '<label class="admin-label" style="margin-top:16px">Hero photos (up to ' + MAX + '; the first one shows first)</label><div class="ms-adm-grid" id="ms-a-grid"></div><div class="ms-adm-row"><button type="button" class="btn btn-outline" id="ms-a-add">Add photos</button><span id="ms-a-count" style="font-size:12.5px;color:var(--text-soft)"></span></div>' +
+      '<p style="font-size:12px;color:var(--text-faint);margin:6px 0 0;">Photos are made smaller before saving so the link loads fast on mobile data.</p>' +
+      '<label class="admin-label" style="margin-top:16px">Address</label><input type="text" id="ms-a-address" class="admin-input" placeholder="e.g. 123 Rizal St., Calasiao, Pangasinan">' +
+      '<label class="admin-label">Google Maps link (optional)</label><input type="url" id="ms-a-maps" class="admin-input" placeholder="https://maps.app.goo.gl/...">' +
+      '<label class="admin-label">Phone</label><input type="tel" id="ms-a-phone" class="admin-input" placeholder="0917 123 4567">' +
+      '<label class="admin-label">Opening hours (one line each)</label><textarea id="ms-a-hours" rows="3" class="admin-input" placeholder="Mon to Fri: 8:00 AM to 8:00 PM&#10;Sat and Sun: 9:00 AM to 6:00 PM"></textarea>' +
+      '<label style="display:flex;gap:8px;align-items:center;font-size:14px;margin-top:12px;cursor:pointer"><input type="checkbox" id="ms-a-menu" checked> Show the menu / price list (from the Products tab)</label>' +
+      '<p style="font-size:12px;color:var(--text-faint);margin:8px 0 0;">Messenger button: uses the Messenger link from the Social links tab.</p></div>' +
+      '<div class="ms-adm-row"><button class="save-btn" id="ms-a-save">Save mini site</button><button type="button" class="btn btn-accent" onclick="showStorefront()">See the customer page</button></div>' +
+      '<input type="file" id="ms-a-file" accept="image/*" multiple style="display:none"><input type="file" id="ms-a-lfile" accept="image/*" style="display:none">';
+    content.appendChild(t);
+    document.getElementById('ms-a-logo-btn').onclick = function () { document.getElementById('ms-a-lfile').click(); };
+    document.getElementById('ms-a-logo-del').onclick = function () { A.logo = ''; paintAdmin(); };
+    document.getElementById('ms-a-lfile').onchange = async function (e) { const f = e.target.files[0]; e.target.value = ''; if (!f) return; try { A.logo = await compress(f, 320, 0.86, /png|svg|webp/i.test(f.type) ? 'image/png' : 'image/jpeg'); paintAdmin(); } catch (err) { showToast('Could not read that logo.', true); } };
+    document.getElementById('ms-a-add').onclick = function () { if (A.imgs.length >= MAX) { showToast('You can add up to ' + MAX + ' photos.', true); return; } document.getElementById('ms-a-file').click(); };
+    document.getElementById('ms-a-file').onchange = async function (e) {
+      const fs = [].slice.call(e.target.files || []); e.target.value = '';
+      for (const f of fs) { if (A.imgs.length >= MAX) break; try { A.imgs.push(await compress(f, 1280, 0.72, 'image/jpeg')); } catch (err) {} }
+      paintAdmin();
+    };
+    document.getElementById('ms-a-save').onclick = function () { save(this); };
+    return true;
+  }
+  function paintAdmin() {
+    const lg = document.getElementById('ms-a-logo'); if (!lg) return;
+    lg.style.display = A.logo ? 'block' : 'none'; if (A.logo) lg.src = A.logo;
+    document.getElementById('ms-a-logo-del').style.display = A.logo ? 'inline-flex' : 'none';
+    const g = document.getElementById('ms-a-grid'); g.innerHTML = '';
+    A.imgs.forEach(function (src, i) {
+      const d = document.createElement('div'); d.className = 'th'; d.innerHTML = '<img alt=""><button type="button" aria-label="Remove photo">×</button>' + (i === 0 ? '<em>First</em>' : '');
+      d.querySelector('img').src = src; d.querySelector('button').onclick = function () { A.imgs.splice(i, 1); paintAdmin(); };
+      if (i > 0) { d.title = 'Click to make this the first photo'; d.querySelector('img').style.cursor = 'pointer'; d.querySelector('img').onclick = function () { A.imgs.unshift(A.imgs.splice(i, 1)[0]); paintAdmin(); }; }
+      g.appendChild(d);
+    });
+    document.getElementById('ms-a-count').textContent = A.imgs.length + ' of ' + MAX + ' photos' + (A.imgs.length > 1 ? ' · click a photo to make it first' : '');
+  }
+  async function renderAdmin() {
+    const c = cfg();
+    if (!S.loaded) await loadImages();
+    A.logo = c.msLogo || ''; A.imgs = S.imgs.map(function (x) { return x.src; });
+    const set = function (id, v) { const el = document.getElementById(id); if (el) el.value = v || ''; };
+    set('ms-a-address', c.msAddress); set('ms-a-maps', c.msMaps); set('ms-a-phone', c.msPhone); set('ms-a-hours', c.msHours);
+    const m = document.getElementById('ms-a-menu'); if (m) m.checked = c.msShowMenu !== '0';
+    paintAdmin();
+  }
+  async function save(btn) {
+    await withSaving(btn, async function () {
+      const v = function (id) { return (document.getElementById(id).value || '').trim(); };
+      const pairs = { msLogo: A.logo, msAddress: v('ms-a-address'), msMaps: link(v('ms-a-maps')), msPhone: v('ms-a-phone'), msHours: v('ms-a-hours'), msShowMenu: document.getElementById('ms-a-menu').checked ? '1' : '0', msImgCount: String(A.imgs.length) };
+      for (let i = 0; i < MAX; i++) pairs['msImg' + (i + 1)] = A.imgs[i] || '';
+      await upsertConfigs(pairs);
+      Object.keys(pairs).forEach(function (k) { if (!/^msImg\d/.test(k)) window.configData[k] = pairs[k]; });
+      S.imgs = A.imgs.map(function (src, i) { return { key: 'msImg' + (i + 1), src: src }; }); S.loaded = true;
+      render();
+      showToast('Mini site saved');
+    });
+  }
+
+  /* ---------- hooks: wrap the app's own functions (nothing in them is changed) ---------- */
+  function wrap() {
+    if (typeof window.applyConfig !== 'function' || window.applyConfig._ms) return typeof window.applyConfig === 'function';
+    const ap = window.applyConfig;
+    window.applyConfig = function () { const r = ap.apply(this, arguments); try { render(); } catch (e) { console.warn('mini site', e); } return r; };
+    window.applyConfig._ms = true;
+    const lp = window.loadPublicConfig;
+    if (typeof lp === 'function') window.loadPublicConfig = async function () {
+      try { window.currentBotIdForMs = typeof currentBotId !== 'undefined' ? currentBotId : null; } catch (e) {}
+      S.loaded = false; S.imgs = [];
+      const r = await lp.apply(this, arguments);
+      loadImages().then(function () { try { render(); if (document.getElementById('tab-minisite') && !document.getElementById('tab-minisite').classList.contains('hidden')) renderAdmin(); } catch (e) {} });
+      return r;
+    };
+    return true;
+  }
+  let n = 0; (function wait() { const a = wrap(), b = mountAdmin(); if ((a && b) || ++n > 80) return; setTimeout(wait, 250); })();
+})();
 </script>
 </body>
 

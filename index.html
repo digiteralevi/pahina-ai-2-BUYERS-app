@@ -811,18 +811,20 @@ html.pahina-dark #pahina-bg{--pahina-ov:linear-gradient(rgba(7,10,22,.80),rgba(7
       <div id="tab-analytics" class="hidden">
         <div class="admin-section">
           <h3>Analytics dashboard</h3>
+          <div class="an-bar"><div class="an-chips" role="tablist" aria-label="Date range"><button type="button" class="an-chip" data-an-range="7">Last 7 days</button><button type="button" class="an-chip" data-an-range="30">Last 30 days</button><button type="button" class="an-chip" data-an-range="90">Last 90 days</button></div><span class="an-status" id="an-status"></span></div>
           <div class="stats-grid">
-            <div class="stat-card"><div class="stat-value" id="stat-total-leads">0</div><div class="stat-label">Total leads</div></div>
-            <div class="stat-card"><div class="stat-value" id="stat-total-conversations">0</div><div class="stat-label">Conversations</div></div>
-            <div class="stat-card"><div class="stat-value" id="stat-conversion-rate">0%</div><div class="stat-label">Conversion rate</div></div>
-            <div class="stat-card"><div class="stat-value" id="stat-avg-messages">0</div><div class="stat-label">Avg messages / chat</div></div>
+            <div class="stat-card"><div class="stat-value" id="stat-total-leads">0</div><div class="stat-label">Leads</div><div class="an-all" id="an-all-leads"></div></div>
+            <div class="stat-card"><div class="stat-value" id="stat-total-conversations">0</div><div class="stat-label">Conversations</div><div class="an-all" id="an-all-conv"></div></div>
+            <div class="stat-card"><div class="stat-value" id="stat-conversion-rate">0%</div><div class="stat-label">Conversion rate</div><div class="an-all" id="an-all-rate"></div></div>
+            <div class="stat-card"><div class="stat-value" id="stat-avg-messages">0</div><div class="stat-label">Avg messages / chat</div><div class="an-all" id="an-all-avg"></div></div>
           </div>
+          <p class="an-note" id="an-note"></p>
           <div class="analytics-chart">
-            <h4>Recent activity (last 7 days)</h4>
+            <h4 id="an-act-title">Recent activity (last 7 days)</h4>
             <div id="activity-chart"></div>
           </div>
           <div class="analytics-chart" style="margin-top:20px;">
-            <h4>Peak hours</h4>
+            <h4 id="an-peak-title">Peak hours</h4>
             <div id="peak-hours-chart"></div>
           </div>
         </div>
@@ -1718,37 +1720,123 @@ function barRow(label, value, pct, purple) {
   wrap.appendChild(top); wrap.appendChild(bar);
   return wrap;
 }
+/* Analytics (Nov 26, 2026): 7 / 30 / 90 day ranges. The cards and charts follow the chosen range; "All time"
+   stays under each card. Rows are filtered in the database and read in pages of 1,000, so busy bots are not cut off.
+   Days and hours are in Philippine time (UTC+8). No sample or made-up history. */
+const AN_TZ_MS = 8 * 3600000, AN_PAGE = 1000, AN_MAX_PAGES = 50;
+let anRange = 7, anToken = 0;
+try { const r = parseInt(localStorage.getItem('pai_an_range'), 10); if ([7, 30, 90].indexOf(r) > -1) anRange = r; } catch (e) {}
+function anDayKey(ms) { return new Date(ms + AN_TZ_MS).toISOString().slice(0, 10); }
+function anDayStart(key) { return Date.parse(key + 'T00:00:00Z') - AN_TZ_MS; }
+function anLabel(ms, opts) { return new Date(ms + AN_TZ_MS).toLocaleDateString('en-US', Object.assign({ timeZone: 'UTC' }, opts)); }
+async function anFetchAll(table, cols, tsCol, sinceIso) {
+  const out = [];
+  for (let page = 0; page < AN_MAX_PAGES; page++) {
+    const r = must(await sb.from(table).select(cols).eq('bot_id', currentBotId).gte(tsCol, sinceIso).order(tsCol, { ascending: true }).range(page * AN_PAGE, page * AN_PAGE + AN_PAGE - 1));
+    const rows = r.data || []; out.push.apply(out, rows);
+    if (rows.length < AN_PAGE) return { rows: out, capped: false };
+  }
+  return { rows: out, capped: true };
+}
+async function anCount(table, extra) {
+  let q = sb.from(table).select('*', { count: 'exact', head: true }).eq('bot_id', currentBotId);
+  if (extra) q = extra(q);
+  const r = must(await q); return r.count || 0;
+}
+async function anFirst(table, tsCol) {
+  const r = must(await sb.from(table).select(tsCol).eq('bot_id', currentBotId).not(tsCol, 'is', null).order(tsCol, { ascending: true }).limit(1));
+  const v = r.data && r.data[0] && r.data[0][tsCol]; return v ? Date.parse(v) : null;
+}
+function anSetChips() {
+  document.querySelectorAll('[data-an-range]').forEach(function (b) { const on = +b.getAttribute('data-an-range') === anRange; b.classList.toggle('on', on); b.setAttribute('aria-selected', on ? 'true' : 'false'); });
+}
+document.addEventListener('click', function (e) {
+  const b = e.target && e.target.closest && e.target.closest('[data-an-range]'); if (!b) return;
+  anRange = +b.getAttribute('data-an-range') || 7;
+  try { localStorage.setItem('pai_an_range', String(anRange)); } catch (er) {}
+  loadAnalytics();
+});
 async function loadAnalytics() {
+  const token = ++anToken, n = anRange;
+  anSetChips();
+  const st = $('an-status'); if (st) st.textContent = 'Loading…';
+  const todayKey = anDayKey(Date.now());
+  const startMs = anDayStart(todayKey) - (n - 1) * 86400000;
+  const sinceIso = new Date(startMs).toISOString();
   try {
-    const leads = (must(await sb.from('leads').select('created_at').eq('bot_id', currentBotId)).data) || [];
-    const conv = (must(await sb.from('conversations').select('started_at,messages_count,lead_captured').eq('bot_id', currentBotId)).data) || [];
-    const captured = conv.filter(c => c.lead_captured).length;
-    $('stat-total-leads').textContent = leads.length;
-    $('stat-total-conversations').textContent = conv.length;
+    const res = await Promise.all([
+      anFetchAll('leads', 'created_at', 'created_at', sinceIso),
+      anFetchAll('conversations', 'started_at,messages_count,lead_captured', 'started_at', sinceIso),
+      anCount('leads'), anCount('conversations'), anCount('conversations', function (q) { return q.eq('lead_captured', true); }),
+      anFirst('leads', 'created_at'), anFirst('conversations', 'started_at')
+    ]);
+    if (token !== anToken) return;
+    const leads = res[0].rows, conv = res[1].rows, capped = res[0].capped || res[1].capped;
+    const allLeads = res[2], allConv = res[3], allCaptured = res[4];
+    const firsts = [res[5], res[6]].filter(Boolean), firstMs = firsts.length ? Math.min.apply(null, firsts) : null;
+    const captured = conv.filter(function (c) { return c.lead_captured; }).length;
+    $('stat-total-leads').textContent = leads.length.toLocaleString();
+    $('stat-total-conversations').textContent = conv.length.toLocaleString();
     $('stat-conversion-rate').textContent = (conv.length ? Math.round(captured / conv.length * 100) : 0) + '%';
-    $('stat-avg-messages').textContent = conv.length ? Math.round(conv.reduce((s, c) => s + (c.messages_count || 0), 0) / conv.length) : 0;
-    const days = [];
-    for (let i = 6; i >= 0; i--) {
-      const d = new Date(); d.setDate(d.getDate() - i);
-      const key = d.toLocaleDateString('en-CA');
-      const n = leads.filter(l => l.created_at && new Date(l.created_at).toLocaleDateString('en-CA') === key).length +
-                conv.filter(c => c.started_at && new Date(c.started_at).toLocaleDateString('en-CA') === key).length;
-      days.push({ d, n });
+    $('stat-avg-messages').textContent = conv.length ? Math.round(conv.reduce(function (s, c) { return s + (c.messages_count || 0); }, 0) / conv.length) : 0;
+    const allLine = function (id, v) { const el = $(id); if (el) el.textContent = 'All time: ' + v; };
+    allLine('an-all-leads', allLeads.toLocaleString()); allLine('an-all-conv', allConv.toLocaleString());
+    allLine('an-all-rate', (allConv ? Math.round(allCaptured / allConv * 100) : 0) + '%');
+    // Activity: by day for 7 and 30 days, by week for 90 days. Starts on the bot's first day if it is newer than the range.
+    let chartStart = startMs, note = '';
+    if (firstMs && firstMs > startMs) { chartStart = anDayStart(anDayKey(firstMs)); note = 'Data starts on ' + anLabel(chartStart, { month: 'long', day: 'numeric', year: 'numeric' }) + ', the first day this bot had activity.'; }
+    if (!firstMs) note = 'No activity yet. Numbers appear after the first chat or lead.';
+    const perDay = {};
+    leads.forEach(function (l) { if (l.created_at) { const k = anDayKey(Date.parse(l.created_at)); perDay[k] = (perDay[k] || 0) + 1; } });
+    conv.forEach(function (c) { if (c.started_at) { const k = anDayKey(Date.parse(c.started_at)); perDay[k] = (perDay[k] || 0) + 1; } });
+    const buckets = [], endMs = anDayStart(todayKey);
+    if (n === 90) {
+      for (let b = endMs - 12 * 7 * 86400000 - 6 * 86400000; b <= endMs; b += 7 * 86400000) {
+        if (b + 6 * 86400000 < chartStart) continue;
+        let v = 0; for (let d = 0; d < 7; d++) v += perDay[anDayKey(b + d * 86400000)] || 0;
+        const from = Math.max(b, chartStart), to = Math.min(b + 6 * 86400000, endMs);
+        buckets.push({ label: anLabel(from, { month: 'short', day: 'numeric' }) + ' to ' + anLabel(to, { month: 'short', day: 'numeric' }), n: v });
+      }
+    } else {
+      for (let d = chartStart; d <= endMs; d += 86400000) buckets.push({ label: anLabel(d, { weekday: 'short', month: 'short', day: 'numeric' }), n: perDay[anDayKey(d)] || 0 });
     }
-    const max = Math.max(...days.map(x => x.n), 1);
+    const max = Math.max.apply(null, buckets.map(function (x) { return x.n; }).concat(1));
     const ac = $('activity-chart'); ac.textContent = '';
-    days.forEach(x => ac.appendChild(barRow(x.d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }), x.n + ' interactions', x.n / max * 100, false)));
+    buckets.slice().reverse().forEach(function (x) { ac.appendChild(barRow(x.label, x.n + (x.n === 1 ? ' interaction' : ' interactions'), x.n / max * 100, false)); });
+    const at = $('an-act-title'); if (at) at.textContent = 'Activity (last ' + n + ' days' + (n === 90 ? ', by week' : ', newest first') + ')';
     const hours = Array(24).fill(0);
-    conv.forEach(c => { if (c.started_at) hours[new Date(c.started_at).getHours()]++; });
-    const hmax = Math.max(...hours, 1);
+    conv.forEach(function (c) { if (c.started_at) hours[new Date(Date.parse(c.started_at) + AN_TZ_MS).getUTCHours()]++; });
+    const hmax = Math.max.apply(null, hours.concat(1));
     const ph = $('peak-hours-chart'); ph.textContent = '';
-    hours.map((n, h) => [h, n]).sort((a, b) => b[1] - a[1]).slice(0, 5).forEach(([h, n]) => ph.appendChild(barRow(`${h}:00 - ${h + 1}:00`, n + ' chats', n / hmax * 100, true)));
-  } catch (err) { console.error('Analytics error:', err); }
+    const top = hours.map(function (v, h) { return [h, v]; }).filter(function (x) { return x[1] > 0; }).sort(function (a, b) { return b[1] - a[1]; }).slice(0, 5);
+    if (!top.length) { const p = document.createElement('p'); p.style.cssText = 'color:var(--text-faint);font-size:13px;margin:0'; p.textContent = 'No chats in this range yet.'; ph.appendChild(p); }
+    const hl = function (h) { return (h % 12 || 12) + (h < 12 ? ' AM' : ' PM'); };
+    top.forEach(function (x) { ph.appendChild(barRow(hl(x[0]) + ' to ' + hl((x[0] + 1) % 24), x[1] + (x[1] === 1 ? ' chat' : ' chats'), x[1] / hmax * 100, true)); });
+    const pt = $('an-peak-title'); if (pt) pt.textContent = 'Peak hours (last ' + n + ' days)';
+    const ne = $('an-note');
+    if (ne) ne.textContent = [note, 'Dates and hours are in Philippine time.', capped ? 'This range has a lot of activity, so only the first ' + (AN_PAGE * AN_MAX_PAGES).toLocaleString() + ' rows per list are shown in the charts.' : ''].filter(Boolean).join(' ');
+    if (st) st.textContent = 'Updated ' + new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  } catch (err) {
+    console.error('Analytics error:', err);
+    if (token !== anToken) return;
+    if (st) st.textContent = '';
+    const ne = $('an-note'); if (ne) ne.textContent = 'Could not load the analytics right now. This is a connection problem, not zero activity. Please open the tab again.';
+  }
 }
 </script>
 <script>/* keep the Pahina Connect link on the Setup Wizard button */
 document.querySelectorAll('a[href="setup.html"]').forEach(function (a) { a.href = 'setup.html' + cQ('?'); });
 </script>
+<style id="an-css">
+.an-bar{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:4px 0 14px}
+.an-chips{display:flex;gap:6px;flex-wrap:wrap}
+.an-chip{padding:8px 14px;border-radius:999px;border:1px solid var(--glass-line,rgba(0,0,0,.12));background:transparent;color:var(--text);font:600 13px/1 var(--sans,inherit);cursor:pointer;transition:background .2s,color .2s,border-color .2s}
+.an-chip:hover{border-color:var(--accent)}
+.an-chip.on{background:var(--accent);border-color:var(--accent);color:var(--on-accent,#fff)}
+.an-status{font-size:12px;color:var(--text-faint)}
+.an-all{font-size:11.5px;color:var(--text-faint);margin-top:4px;min-height:14px}
+.an-note{font-size:12.5px;color:var(--text-faint);line-height:1.55;margin:10px 0 0}
+</style>
 <style id="ms-css">
 /* ===== Mini site (Nov 24, 2026): shown only when a bot has Mini site settings ===== */
 .ms-on .stage.hero{position:relative;max-width:none;border-radius:0;overflow:hidden;isolation:isolate;padding-top:clamp(56px,12vh,130px);padding-bottom:64px}
